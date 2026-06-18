@@ -1,0 +1,181 @@
+{% extends "base.html" %}
+
+{% block title %}Survivor Status{% endblock %}
+
+{% block extra_css %}
+<style>
+    .detail-container {
+        display: grid;
+        grid-template-columns: 2fr 1fr;
+        gap: 2rem;
+        max-width: 1100px;
+        margin: 0 auto;
+    }
+
+    .panel {
+        background: white;
+        border-radius: 10px;
+        overflow: hidden;
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+    }
+
+    .survivor-image {
+        width: 100%;
+        height: 500px;
+        object-fit: cover;
+        background: #f0f0f0;
+    }
+
+    .content {
+        padding: 1.75rem;
+    }
+
+    .notice {
+        background: #fff3cd;
+        border-left: 4px solid #ffc107;
+        padding: 1rem;
+        border-radius: 5px;
+        color: #856404;
+        line-height: 1.5;
+    }
+
+    .verified {
+        background: #d4edda;
+        border-left-color: #28a745;
+        color: #155724;
+    }
+
+    .info-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 1rem;
+        margin-top: 1.5rem;
+    }
+
+    .info-item {
+        border-left: 3px solid #667eea;
+        padding-left: 1rem;
+    }
+
+    .info-label {
+        color: #777;
+        font-size: 0.85rem;
+        text-transform: uppercase;
+    }
+
+    .info-value {
+        color: #333;
+        font-weight: bold;
+        font-size: 1.1rem;
+    }
+
+    .sidebar {
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+    }
+
+    .btn {
+        display: block;
+        width: 100%;
+        padding: 0.8rem;
+        border-radius: 5px;
+        text-align: center;
+        text-decoration: none;
+        font-weight: bold;
+        margin-top: 0.75rem;
+    }
+
+    .btn-primary {
+        background: #667eea;
+        color: white;
+    }
+
+    .btn-success {
+        background: #28a745;
+        color: white;
+    }
+
+    .btn-secondary {
+        background: #e9ecef;
+        color: #333;
+    }
+
+    @media (max-width: 768px) {
+        .detail-container,
+        .info-grid {
+            grid-template-columns: 1fr;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="detail-container">
+    <div class="panel">
+        <img src="{{ survivor_image_url(survivor) }}"
+             alt="Survivor image"
+             class="survivor-image"
+             onerror="this.src='{{ url_for('static', filename='images/placeholder.svg') }}'">
+
+        <div class="content">
+            {% if can_view_details %}
+                <div class="notice verified">
+                    This identification has been verified. The protected rescue details below are visible only to authorized users.
+                </div>
+
+                <div class="info-grid">
+                    <div class="info-item">
+                        <div class="info-label">Latitude</div>
+                        <div class="info-value">{{ survivor.latitude }}</div>
+                    </div>
+                    <div class="info-item">
+                        <div class="info-label">Longitude</div>
+                        <div class="info-value">{{ survivor.longitude }}</div>
+                    </div>
+                    <div class="info-item">
+                        <div class="info-label">Direction</div>
+                        <div class="info-value">{{ survivor.direction }}</div>
+                    </div>
+                    <div class="info-item">
+                        <div class="info-label">Detected Condition</div>
+                        <div class="info-value">{{ survivor.posture|capitalize }}</div>
+                    </div>
+                    <div class="info-item">
+                        <div class="info-label">Recovery Status</div>
+                        <div class="info-value">{{ survivor.recovery_status|default('Not updated', true)|replace('_', ' ')|capitalize }}</div>
+                    </div>
+                    <div class="info-item">
+                        <div class="info-label">Likely Hospital</div>
+                        <div class="info-value">{{ survivor.likely_hospital|default('Not assigned', true) }}</div>
+                    </div>
+                </div>
+            {% else %}
+                <div class="notice">
+                    Captured rescue details are private. If you recognize this person, log in and submit the identification form. Details will be shared with you only after administrator verification.
+                </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="sidebar">
+        <div class="panel content">
+            <h2>Status</h2>
+            <p><strong>Submitted:</strong> {{ 'Yes' if survivor.identified else 'No' }}</p>
+            <p><strong>Verified:</strong> {{ 'Yes' if survivor.get('verified') else 'Pending' }}</p>
+
+            {% if not survivor.identified %}
+                {% if current_user.is_authenticated %}
+                    <a href="{{ url_for('identify_survivor', survivor_id=survivor.survivor_id) }}" class="btn btn-success">Fill Identification Form</a>
+                {% else %}
+                    <a href="{{ url_for('login', next=url_for('identify_survivor', survivor_id=survivor.survivor_id)) }}" class="btn btn-primary">Login & Help</a>
+                {% endif %}
+            {% elif is_submitter and not survivor.get('verified') %}
+                <p>Your submission is under administrator review.</p>
+            {% endif %}
+
+            <a href="{{ url_for('home') }}" class="btn btn-secondary">Back to List</a>
+        </div>
+    </div>
+</div>
+{% endblock %}

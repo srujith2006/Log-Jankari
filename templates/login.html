@@ -1,0 +1,199 @@
+{% extends "base.html" %}
+
+{% block title %}Login - Survivor Detection System{% endblock %}
+
+{% block extra_css %}
+<style>
+    .auth-container {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        min-height: calc(100vh - 200px);
+    }
+    
+    .auth-box {
+        background: white;
+        border-radius: 10px;
+        box-shadow: 0 8px 25px rgba(0, 0, 0, 0.3);
+        padding: 2rem;
+        width: 100%;
+        max-width: 400px;
+    }
+    
+    .auth-title {
+        text-align: center;
+        color: #333;
+        margin-bottom: 1.5rem;
+        font-size: 1.8rem;
+    }
+    
+    .form-group {
+        margin-bottom: 1.5rem;
+    }
+    
+    .form-group label {
+        display: block;
+        margin-bottom: 0.5rem;
+        color: #333;
+        font-weight: 500;
+    }
+    
+    .form-group input {
+        width: 100%;
+        padding: 0.75rem;
+        border: 2px solid #e0e0e0;
+        border-radius: 5px;
+        font-size: 1rem;
+        transition: all 0.3s ease;
+    }
+    
+    .form-group input:focus {
+        outline: none;
+        border-color: #667eea;
+        box-shadow: 0 0 5px rgba(102, 126, 234, 0.3);
+    }
+    
+    .form-group input[type="password"] {
+        font-family: 'Courier New', monospace;
+    }
+    
+    .form-actions {
+        display: flex;
+        gap: 0.5rem;
+    }
+    
+    .btn {
+        flex: 1;
+        padding: 0.75rem;
+        border: none;
+        border-radius: 5px;
+        font-size: 1rem;
+        font-weight: bold;
+        cursor: pointer;
+        transition: all 0.3s ease;
+    }
+    
+    .btn-primary {
+        background: #667eea;
+        color: white;
+    }
+    
+    .btn-primary:hover {
+        background: #5568d3;
+        transform: translateY(-2px);
+    }
+    
+    .btn-secondary {
+        background: #e9ecef;
+        color: #333;
+    }
+    
+    .btn-secondary:hover {
+        background: #dee2e6;
+    }
+    
+    .auth-link {
+        text-align: center;
+        margin-top: 1.5rem;
+        color: #666;
+    }
+    
+    .auth-link a {
+        color: #667eea;
+        text-decoration: none;
+        font-weight: bold;
+    }
+    
+    .auth-link a:hover {
+        text-decoration: underline;
+    }
+    
+    .alert {
+        padding: 1rem;
+        border-radius: 5px;
+        margin-bottom: 1.5rem;
+    }
+    
+    .alert-success {
+        background: #d4edda;
+        color: #155724;
+        border: 1px solid #c3e6cb;
+    }
+    
+    .alert-error {
+        background: #f8d7da;
+        color: #721c24;
+        border: 1px solid #f5c6cb;
+    }
+    
+    .alert-info {
+        background: #d1ecf1;
+        color: #0c5460;
+        border: 1px solid #bee5eb;
+    }
+    
+    .remember-me {
+        display: flex;
+        align-items: center;
+        margin-bottom: 1.5rem;
+    }
+    
+    .remember-me input {
+        margin-right: 0.5rem;
+        cursor: pointer;
+    }
+    
+    .remember-me label {
+        margin-bottom: 0;
+        cursor: pointer;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="auth-container">
+    <div class="auth-box">
+        <h1 class="auth-title">🔐 Login</h1>
+        
+        {% if error %}
+            <div class="alert alert-error">
+                ❌ {{ error }}
+            </div>
+        {% endif %}
+        
+        <div class="alert alert-info">
+            <strong>👋 Welcome!</strong> Please log in or register to help identify survivors and provide information.
+        </div>
+        
+        <form method="POST" action="{{ url_for('login') }}">
+            <div class="form-group">
+                <label for="email">Email Address</label>
+                <input type="email" id="email" name="email"
+                       placeholder="Enter your email address"
+                       required autofocus>
+            </div>
+            
+            <div class="form-group">
+                <label for="password">Password</label>
+                <input type="password" id="password" name="password" 
+                       placeholder="Enter your password"
+                       required>
+            </div>
+            
+            <div class="remember-me">
+                <input type="checkbox" id="remember" name="remember" 
+                       value="true">
+                <label for="remember">Remember me</label>
+            </div>
+            
+            <div class="form-actions">
+                <button type="submit" class="btn btn-primary">Login</button>
+            </div>
+        </form>
+        
+        <div class="auth-link">
+            Don't have an account? <a href="{{ url_for('register') }}">Register here</a>
+        </div>
+    </div>
+</div>
+{% endblock %}

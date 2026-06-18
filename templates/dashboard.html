@@ -1,0 +1,390 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - My Profile{% endblock %}
+
+{% block extra_css %}
+<style>
+    .dashboard-container {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 2rem;
+        max-width: 1200px;
+        margin: 0 auto;
+    }
+    
+    .profile-card {
+        background: white;
+        border-radius: 10px;
+        padding: 2rem;
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+    }
+    
+    .profile-header {
+        text-align: center;
+        margin-bottom: 2rem;
+    }
+    
+    .profile-avatar {
+        width: 100px;
+        height: 100px;
+        border-radius: 50%;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 3rem;
+        margin: 0 auto 1rem;
+        color: white;
+    }
+    
+    .profile-name {
+        font-size: 1.5rem;
+        font-weight: bold;
+        color: #333;
+        margin-bottom: 0.5rem;
+    }
+    
+    .profile-email {
+        color: #666;
+        font-size: 0.9rem;
+    }
+    
+    .profile-section {
+        border-top: 1px solid #e0e0e0;
+        padding-top: 1.5rem;
+        margin-top: 1.5rem;
+    }
+    
+    .section-title {
+        font-size: 1.2rem;
+        font-weight: bold;
+        color: #333;
+        margin-bottom: 1rem;
+    }
+    
+    .info-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 0.75rem 0;
+        border-bottom: 1px solid #f0f0f0;
+    }
+    
+    .info-label {
+        color: #666;
+    }
+    
+    .info-value {
+        font-weight: bold;
+        color: #333;
+    }
+    
+    .stats-card {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border-radius: 10px;
+        padding: 2rem;
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+    }
+    
+    .stat-item {
+        text-align: center;
+        margin-bottom: 1.5rem;
+    }
+    
+    .stat-item:last-child {
+        margin-bottom: 0;
+    }
+    
+    .stat-number {
+        font-size: 2.5rem;
+        font-weight: bold;
+        margin-bottom: 0.5rem;
+    }
+    
+    .stat-label {
+        font-size: 0.9rem;
+        opacity: 0.9;
+    }
+    
+    .badge {
+        display: inline-block;
+        background: rgba(255, 255, 255, 0.2);
+        padding: 0.3rem 0.8rem;
+        border-radius: 20px;
+        font-size: 0.8rem;
+        margin-top: 1rem;
+    }
+    
+    .btn {
+        width: 100%;
+        padding: 0.75rem;
+        border: none;
+        border-radius: 5px;
+        font-size: 1rem;
+        font-weight: bold;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        margin-top: 1rem;
+    }
+    
+    .btn-primary {
+        background: #667eea;
+        color: white;
+    }
+    
+    .btn-primary:hover {
+        background: #5568d3;
+    }
+    
+    .btn-secondary {
+        background: #e9ecef;
+        color: #333;
+    }
+    
+    .btn-secondary:hover {
+        background: #dee2e6;
+    }
+
+    .submissions-panel {
+        grid-column: 1 / -1;
+        background: white;
+        border-radius: 10px;
+        padding: 2rem;
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+    }
+
+    .submission-card {
+        border: 1px solid #e0e0e0;
+        border-radius: 8px;
+        padding: 1rem;
+        margin-top: 1rem;
+        display: grid;
+        grid-template-columns: 120px 1fr auto;
+        gap: 1rem;
+        align-items: center;
+    }
+
+    .submission-card img {
+        width: 120px;
+        height: 90px;
+        object-fit: cover;
+        border-radius: 6px;
+        background: #f0f0f0;
+    }
+
+    .status-pill {
+        display: inline-block;
+        padding: 0.25rem 0.65rem;
+        border-radius: 99px;
+        font-size: 0.8rem;
+        font-weight: bold;
+    }
+
+    .status-pending {
+        background: #fff3cd;
+        color: #856404;
+    }
+
+    .status-verified {
+        background: #d4edda;
+        color: #155724;
+    }
+
+    .missing-report {
+        border: 1px solid #e0e0e0;
+        border-radius: 8px;
+        padding: 1rem;
+        margin-top: 1rem;
+        display: grid;
+        grid-template-columns: 100px 1fr;
+        gap: 1rem;
+    }
+
+    .missing-report img {
+        width: 100px;
+        height: 100px;
+        object-fit: cover;
+        border-radius: 6px;
+        background: #f0f0f0;
+    }
+
+    .missing-meta {
+        color: #666;
+        line-height: 1.5;
+    }
+    
+    @media (max-width: 768px) {
+        .dashboard-container {
+            grid-template-columns: 1fr;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="dashboard-container">
+    <!-- Profile Card -->
+    <div class="profile-card">
+        <div class="profile-header">
+            <div class="profile-avatar">👤</div>
+            <div class="profile-name">{{ user.username }}</div>
+            <div class="profile-email">{{ user.email }}</div>
+        </div>
+        
+        <div class="profile-section">
+            <div class="section-title">Account Information</div>
+            <div class="info-row">
+                <span class="info-label">Member Since</span>
+                <span class="info-value">
+                    {% if user.created_at and user.created_at.strftime is defined %}
+                        {{ user.created_at.strftime('%Y-%m-%d') }}
+                    {% else %}
+                        {{ user.created_at|default('Unknown', true) }}
+                    {% endif %}
+                </span>
+            </div>
+            <div class="info-row">
+                <span class="info-label">Account Status</span>
+                <span class="info-value">
+                    {% if user.get('is_admin') %}
+                        <span style="color: #ffc107;">⭐ Admin</span>
+                    {% else %}
+                        <span style="color: #28a745;">✅ Active</span>
+                    {% endif %}
+                </span>
+            </div>
+        </div>
+        
+        <a href="{{ url_for('home') }}" class="btn btn-primary">← Back to Home</a>
+    </div>
+    
+    <!-- Statistics Card -->
+    <div class="stats-card">
+        <div class="section-title" style="color: white; text-align: center;">📊 Your Contributions</div>
+        
+        <div class="stat-item">
+            <div class="stat-number">{{ user.get('contributions', 0) }}</div>
+            <div class="stat-label">Identifications</div>
+        </div>
+        
+        <div class="stat-item">
+            <div class="stat-label" style="font-size: 0.85rem;">
+                You have helped identify {{ user.get('contributions', 0) }} 
+                survivor{{ "s" if user.get('contributions', 1) != 1 else "" }}
+            </div>
+        </div>
+        
+        {% if user.get('contributions', 0) > 0 %}
+            <div class="badge">
+                🏆 Thank you for your contribution!
+            </div>
+        {% else %}
+            <div class="badge">
+                Start contributing by identifying survivors
+            </div>
+        {% endif %}
+        
+        <div style="border-top: 1px solid rgba(255, 255, 255, 0.3); margin-top: 1.5rem; padding-top: 1.5rem;">
+            <div class="stat-item">
+                <div class="stat-label">
+                    Total Survivors: {{ stats.total }}<br>
+                    Still Unidentified: {{ stats.unidentified }}<br>
+                    Identified: {{ stats.identified }}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="dashboard-container" style="margin-top: 2rem;">
+    <div class="submissions-panel">
+        <h2 style="color: #333; margin-bottom: 1rem;">Missing Person Reports</h2>
+        <p style="color: #666; line-height: 1.6;">Report someone missing if you know their details and have proof they may have been in the disaster area.</p>
+        <a href="{{ url_for('report_missing_person') }}" class="btn btn-primary" style="max-width: 280px;">Upload Missing Person</a>
+
+        {% if missing_reports %}
+            {% for report in missing_reports %}
+                <div class="missing-report">
+                    {% if report.photo_path %}
+                        <img src="{{ missing_file_url(report.photo_path) }}" alt="Missing person photo">
+                    {% else %}
+                        <img src="{{ url_for('static', filename='images/placeholder.svg') }}" alt="No photo">
+                    {% endif %}
+                    <div>
+                        <strong>{{ report.name }}</strong>
+                        <div class="missing-meta">
+                            Age: {{ report.age }}<br>
+                            Phone: {{ report.phone }}<br>
+                            Last met: {{ report.last_met }}<br>
+                            Identification marks: {{ report.identification_marks|default('Not provided', true) }}<br>
+                            Accessories: {{ report.accessories|default('Not provided', true) }}<br>
+                            Visible marks: {{ report.visible_marks|default('Not provided', true) }}<br>
+                            Dress color: {{ report.dress_color|default('Not provided', true) }}<br>
+                            Proof: {{ report.disaster_proof_text }}<br>
+                            Status: {{ report.status|capitalize }}
+                            {% if report.proof_file_path %}
+                                <br><a href="{{ missing_file_url(report.proof_file_path) }}" target="_blank">View uploaded proof</a>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            {% endfor %}
+        {% else %}
+            <p style="color: #666; margin-top: 1rem;">You have not submitted any missing-person reports yet.</p>
+        {% endif %}
+    </div>
+</div>
+
+<div class="dashboard-container" style="margin-top: 2rem;">
+    <div class="submissions-panel">
+        <h2 style="color: #333; margin-bottom: 1rem;">Your Submitted Identification Forms</h2>
+        {% if submissions %}
+            {% for survivor in submissions %}
+                <div class="submission-card">
+                    <img src="{{ survivor_image_url(survivor) }}"
+                         alt="Submitted survivor image"
+                         onerror="this.src='{{ url_for('static', filename='images/placeholder.svg') }}'">
+                    <div>
+                        <strong>{{ survivor.identification.name if survivor.identification else 'Submitted survivor' }}</strong>
+                        <div style="color: #666; margin-top: 0.35rem;">
+                            {% if survivor.get('verified') %}
+                                <span class="status-pill status-verified">Verified</span>
+                                Details released. Recovery status:
+                                {{ survivor.recovery_status|default('Not updated', true)|replace('_', ' ')|capitalize }}.
+                            {% else %}
+                                <span class="status-pill status-pending">Pending admin review</span>
+                                Captured rescue details are still private.
+                            {% endif %}
+                        </div>
+                    </div>
+                    <div>
+                        <a href="{{ url_for('survivor_detail', survivor_id=survivor.survivor_id) }}" class="btn btn-primary">Open</a>
+                    </div>
+                </div>
+            {% endfor %}
+        {% else %}
+            <p style="color: #666;">You have not submitted any identification forms yet.</p>
+        {% endif %}
+    </div>
+</div>
+
+<!-- More Info Section -->
+<div style="background: white; border-radius: 10px; padding: 2rem; margin-top: 2rem; box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);">
+    <h2 style="color: #333; margin-bottom: 1rem;">ℹ️ About This Platform</h2>
+    <p style="color: #666; line-height: 1.6;">
+        This platform helps rescue teams and community members identify missing survivors. 
+        By providing information about unidentified survivors, you're helping save lives and 
+        reunite families. Your contributions are valuable and help the rescue operation succeed.
+    </p>
+    
+    <h3 style="color: #333; margin-top: 1.5rem; margin-bottom: 1rem;">🎯 How to Help</h3>
+    <ol style="color: #666; line-height: 1.8;">
+        <li>Browse unidentified survivors on the home page</li>
+        <li>If you recognize someone, click "Help" or "Provide Information"</li>
+        <li>Fill in their details (name, contact information, etc.)</li>
+        <li>Submit the information - it will help with the rescue efforts</li>
+        <li>Check your profile to see your contributions</li>
+    </ol>
+</div>
+{% endblock %}

@@ -1,0 +1,229 @@
+{% extends "base.html" %}
+
+{% block title %}Admin Dashboard{% endblock %}
+
+{% block extra_css %}
+<style>
+    .admin-container {
+        max-width: 1400px;
+    }
+
+    .admin-title,
+    .section-title {
+        color: white;
+        text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+        margin-bottom: 1.5rem;
+    }
+
+    .stats-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+        gap: 1rem;
+        margin-bottom: 2rem;
+    }
+
+    .stat-card,
+    .request-card,
+    .empty-state {
+        background: white;
+        border-radius: 10px;
+        padding: 1.25rem;
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.18);
+    }
+
+    .stat-number {
+        font-size: 2.2rem;
+        font-weight: bold;
+        color: #667eea;
+    }
+
+    .requests-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
+        gap: 1.25rem;
+        margin-bottom: 2rem;
+    }
+
+    .request-image {
+        width: 100%;
+        height: 240px;
+        object-fit: cover;
+        border-radius: 6px;
+        background: #f0f0f0;
+        margin-bottom: 1rem;
+    }
+
+    .badge {
+        display: inline-block;
+        padding: 0.25rem 0.65rem;
+        border-radius: 99px;
+        font-size: 0.75rem;
+        font-weight: bold;
+        margin-bottom: 0.75rem;
+    }
+
+    .badge-pending {
+        background: #fff3cd;
+        color: #856404;
+    }
+
+    .badge-verified {
+        background: #d4edda;
+        color: #155724;
+    }
+
+    .detail-list p {
+        margin: 0.35rem 0;
+        color: #444;
+    }
+
+    .verify-form {
+        border-top: 1px solid #e0e0e0;
+        margin-top: 1rem;
+        padding-top: 1rem;
+    }
+
+    .verify-form label {
+        display: block;
+        font-weight: bold;
+        margin: 0.75rem 0 0.35rem;
+    }
+
+    .verify-form input,
+    .verify-form select {
+        width: 100%;
+        padding: 0.65rem;
+        border: 2px solid #e0e0e0;
+        border-radius: 5px;
+    }
+
+    .btn {
+        display: inline-block;
+        padding: 0.65rem 0.9rem;
+        border: none;
+        border-radius: 5px;
+        text-decoration: none;
+        font-weight: bold;
+        cursor: pointer;
+        margin-top: 0.75rem;
+    }
+
+    .btn-primary {
+        background: #667eea;
+        color: white;
+    }
+
+    .btn-success {
+        background: #28a745;
+        color: white;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="admin-container">
+    <h1 class="admin-title">Admin Dashboard</h1>
+
+    <div class="stats-grid">
+        <div class="stat-card">
+            <div class="stat-number">{{ stats.total }}</div>
+            <div>Total survivors</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-number">{{ stats.unidentified }}</div>
+            <div>Awaiting submissions</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-number">{{ stats.identified }}</div>
+            <div>Submitted for review</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-number">{{ stats.verified }}</div>
+            <div>Verified</div>
+        </div>
+    </div>
+
+    <h2 class="section-title">Submitted Identification Requests</h2>
+    {% if identified_survivors %}
+        <div class="requests-grid">
+            {% for survivor in identified_survivors %}
+                {% set identification = survivor.identification or {} %}
+                <div class="request-card">
+                    <img src="{{ survivor_image_url(survivor) }}"
+                         alt="Survivor image"
+                         class="request-image"
+                         onerror="this.src='{{ url_for('static', filename='images/placeholder.svg') }}'">
+
+                    {% if survivor.get('verified') %}
+                        <span class="badge badge-verified">Verified</span>
+                    {% else %}
+                        <span class="badge badge-pending">Pending admin verification</span>
+                    {% endif %}
+
+                    <div class="detail-list">
+                        <p><strong>Survivor ID:</strong> {{ survivor.survivor_id }}</p>
+                        <p><strong>Name:</strong> {{ identification.name }}</p>
+                        <p><strong>Age:</strong> {{ identification.age }}</p>
+                        <p><strong>Phone:</strong> {{ identification.phone }}</p>
+                        <p><strong>Address:</strong> {{ identification.address }}</p>
+                        <p><strong>Relation:</strong> {{ identification.relationship|replace('_', ' ')|capitalize }}</p>
+                        {% if identification.relationship_detail %}
+                            <p><strong>Blood relation:</strong> {{ identification.relationship_detail }}</p>
+                        {% endif %}
+                        {% if identification.other_detail %}
+                            <p><strong>How they know:</strong> {{ identification.other_detail }}</p>
+                        {% endif %}
+                        {% if identification.notes %}
+                            <p><strong>Notes:</strong> {{ identification.notes }}</p>
+                        {% endif %}
+                    </div>
+
+                    <a href="{{ url_for('survivor_detail', survivor_id=survivor.survivor_id) }}" class="btn btn-primary">View captured details</a>
+
+                    {% if not survivor.get('verified') %}
+                        <form class="verify-form" method="POST" action="{{ url_for('verify_survivor', survivor_id=survivor.survivor_id) }}">
+                            <label for="recovery_status_{{ loop.index }}">Recovery status</label>
+                            <select id="recovery_status_{{ loop.index }}" name="recovery_status" required>
+                                <option value="">Select status</option>
+                                <option value="recovered">Survivor recovered</option>
+                                <option value="not_recovered">Survivor not recovered yet</option>
+                            </select>
+
+                            <label for="hospital_{{ loop.index }}">Likely hospital if recovered</label>
+                            <input id="hospital_{{ loop.index }}" name="hospital" placeholder="Hospital name or destination">
+
+                            <button type="submit" class="btn btn-success">Verify and release details</button>
+                        </form>
+                    {% else %}
+                        <div class="detail-list">
+                            <p><strong>Recovery status:</strong> {{ survivor.recovery_status|default('Not updated', true)|replace('_', ' ')|capitalize }}</p>
+                            <p><strong>Likely hospital:</strong> {{ survivor.likely_hospital|default('Not assigned', true) }}</p>
+                        </div>
+                    {% endif %}
+                </div>
+            {% endfor %}
+        </div>
+    {% else %}
+        <div class="empty-state">No submitted identification requests yet.</div>
+    {% endif %}
+
+    <h2 class="section-title">Images Still Awaiting Help</h2>
+    {% if unidentified_survivors %}
+        <div class="requests-grid">
+            {% for survivor in unidentified_survivors %}
+                <div class="request-card">
+                    <img src="{{ survivor_image_url(survivor) }}"
+                         alt="Survivor image"
+                         class="request-image"
+                         onerror="this.src='{{ url_for('static', filename='images/placeholder.svg') }}'">
+                    <span class="badge badge-pending">No user submission yet</span>
+                    <p><strong>Survivor ID:</strong> {{ survivor.survivor_id }}</p>
+                    <a href="{{ url_for('survivor_detail', survivor_id=survivor.survivor_id) }}" class="btn btn-primary">Admin view</a>
+                </div>
+            {% endfor %}
+        </div>
+    {% else %}
+        <div class="empty-state">No unsubmitted survivor images.</div>
+    {% endif %}
+</div>
+{% endblock %}

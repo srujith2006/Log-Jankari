@@ -1,0 +1,227 @@
+{% extends "base.html" %}
+
+{% block title %}Register - Survivor Detection System{% endblock %}
+
+{% block extra_css %}
+<style>
+    .auth-container {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        min-height: calc(100vh - 200px);
+    }
+    
+    .auth-box {
+        background: white;
+        border-radius: 10px;
+        box-shadow: 0 8px 25px rgba(0, 0, 0, 0.3);
+        padding: 2rem;
+        width: 100%;
+        max-width: 400px;
+    }
+    
+    .auth-title {
+        text-align: center;
+        color: #333;
+        margin-bottom: 1.5rem;
+        font-size: 1.8rem;
+    }
+    
+    .form-group {
+        margin-bottom: 1.5rem;
+    }
+    
+    .form-group label {
+        display: block;
+        margin-bottom: 0.5rem;
+        color: #333;
+        font-weight: 500;
+    }
+    
+    .form-group input {
+        width: 100%;
+        padding: 0.75rem;
+        border: 2px solid #e0e0e0;
+        border-radius: 5px;
+        font-size: 1rem;
+        transition: all 0.3s ease;
+    }
+    
+    .form-group input:focus {
+        outline: none;
+        border-color: #667eea;
+        box-shadow: 0 0 5px rgba(102, 126, 234, 0.3);
+    }
+    
+    .form-group input[type="password"] {
+        font-family: 'Courier New', monospace;
+    }
+    
+    .password-requirements {
+        background: #f0f0f0;
+        border-radius: 5px;
+        padding: 1rem;
+        margin-bottom: 1.5rem;
+        font-size: 0.85rem;
+        color: #666;
+    }
+    
+    .password-requirements ul {
+        list-style: none;
+        margin: 0.5rem 0 0 0;
+    }
+    
+    .password-requirements li {
+        padding: 0.3rem 0;
+        display: flex;
+        align-items: center;
+    }
+    
+    .password-requirements li:before {
+        content: "✓";
+        color: #28a745;
+        font-weight: bold;
+        margin-right: 0.5rem;
+    }
+    
+    .form-actions {
+        display: flex;
+        gap: 0.5rem;
+    }
+    
+    .btn {
+        flex: 1;
+        padding: 0.75rem;
+        border: none;
+        border-radius: 5px;
+        font-size: 1rem;
+        font-weight: bold;
+        cursor: pointer;
+        transition: all 0.3s ease;
+    }
+    
+    .btn-primary {
+        background: #667eea;
+        color: white;
+    }
+    
+    .btn-primary:hover {
+        background: #5568d3;
+        transform: translateY(-2px);
+    }
+    
+    .btn-secondary {
+        background: #e9ecef;
+        color: #333;
+    }
+    
+    .btn-secondary:hover {
+        background: #dee2e6;
+    }
+    
+    .auth-link {
+        text-align: center;
+        margin-top: 1.5rem;
+        color: #666;
+    }
+    
+    .auth-link a {
+        color: #667eea;
+        text-decoration: none;
+        font-weight: bold;
+    }
+    
+    .auth-link a:hover {
+        text-decoration: underline;
+    }
+    
+    .alert {
+        padding: 1rem;
+        border-radius: 5px;
+        margin-bottom: 1.5rem;
+    }
+    
+    .alert-success {
+        background: #d4edda;
+        color: #155724;
+        border: 1px solid #c3e6cb;
+    }
+    
+    .alert-error {
+        background: #f8d7da;
+        color: #721c24;
+        border: 1px solid #f5c6cb;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="auth-container">
+    <div class="auth-box">
+        <h1 class="auth-title">📝 Register</h1>
+        
+        {% if success %}
+            <div class="alert alert-success">
+                {{ success }}
+                <br><br>
+                <a href="{{ url_for('login') }}" class="btn btn-primary" style="margin-top: 1rem;">Go to Login</a>
+            </div>
+        {% endif %}
+        
+        {% if error %}
+            <div class="alert alert-error">
+                ❌ {{ error }}
+            </div>
+        {% endif %}
+        
+        {% if not success %}
+            <form method="POST" action="{{ url_for('register') }}">
+                <div class="form-group">
+                    <label for="username">Name</label>
+                    <input type="text" id="username" name="username" 
+                           placeholder="Enter your name"
+                           required minlength="3">
+                </div>
+                
+                <div class="form-group">
+                    <label for="email">Email Address</label>
+                    <input type="email" id="email" name="email" 
+                           placeholder="your@email.com"
+                           required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="password">Password</label>
+                    <input type="password" id="password" name="password" 
+                           placeholder="Password (minimum 6 characters)"
+                           required minlength="6">
+                </div>
+                
+                <div class="password-requirements">
+                    <strong>Password Requirements:</strong>
+                    <ul>
+                        <li>At least 6 characters</li>
+                        <li>Mix of uppercase and lowercase letters</li>
+                        <li>Include numbers and special characters</li>
+                    </ul>
+                </div>
+                
+                <div class="form-group">
+                    <label for="confirm_password">Confirm Password</label>
+                    <input type="password" id="confirm_password" name="confirm_password" 
+                           placeholder="Confirm your password"
+                           required>
+                </div>
+                
+                <div class="form-actions">
+                    <button type="submit" class="btn btn-primary">Create Account</button>
+                </div>
+            </form>
+            
+            <div class="auth-link">
+                Already have an account? <a href="{{ url_for('login') }}">Login here</a>
+            </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

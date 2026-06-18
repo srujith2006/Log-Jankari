@@ -1,0 +1,228 @@
+{% extends "base.html" %}
+
+{% block title %}Help Identify Survivor{% endblock %}
+
+{% block extra_css %}
+<style>
+    .identify-container {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 2rem;
+        max-width: 1050px;
+        margin: 0 auto;
+    }
+
+    .panel {
+        background: white;
+        border-radius: 10px;
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+        overflow: hidden;
+    }
+
+    .survivor-image {
+        width: 100%;
+        height: 430px;
+        object-fit: cover;
+        background: #f0f0f0;
+    }
+
+    .preview-copy,
+    .form-box {
+        padding: 1.5rem;
+    }
+
+    .preview-copy p {
+        color: #666;
+        line-height: 1.5;
+    }
+
+    .form-title {
+        color: #333;
+        margin-bottom: 1.25rem;
+    }
+
+    .form-group {
+        margin-bottom: 1.2rem;
+    }
+
+    .form-group label {
+        display: block;
+        margin-bottom: 0.45rem;
+        color: #333;
+        font-weight: 600;
+    }
+
+    .form-group input,
+    .form-group select,
+    .form-group textarea {
+        width: 100%;
+        padding: 0.75rem;
+        border: 2px solid #e0e0e0;
+        border-radius: 5px;
+        font-size: 1rem;
+        font-family: inherit;
+    }
+
+    .form-group textarea {
+        min-height: 95px;
+        resize: vertical;
+    }
+
+    .required {
+        color: #dc3545;
+    }
+
+    .conditional {
+        display: none;
+    }
+
+    .alert {
+        padding: 1rem;
+        border-radius: 5px;
+        margin-bottom: 1.25rem;
+    }
+
+    .alert-success {
+        background: #d4edda;
+        color: #155724;
+        border: 1px solid #c3e6cb;
+    }
+
+    .alert-error {
+        background: #f8d7da;
+        color: #721c24;
+        border: 1px solid #f5c6cb;
+    }
+
+    .form-actions {
+        display: flex;
+        gap: 1rem;
+        margin-top: 1.5rem;
+    }
+
+    .btn {
+        flex: 1;
+        padding: 0.75rem;
+        border: none;
+        border-radius: 5px;
+        text-align: center;
+        text-decoration: none;
+        font-weight: bold;
+        cursor: pointer;
+    }
+
+    .btn-primary {
+        background: #28a745;
+        color: white;
+    }
+
+    .btn-secondary {
+        background: #e9ecef;
+        color: #333;
+    }
+
+    @media (max-width: 768px) {
+        .identify-container {
+            grid-template-columns: 1fr;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="identify-container">
+    <div class="panel">
+        <img src="{{ survivor_image_url(survivor) }}"
+             alt="Survivor image"
+             class="survivor-image"
+             onerror="this.src='{{ url_for('static', filename='images/placeholder.svg') }}'">
+        <div class="preview-copy">
+            <h2>Recognize this person?</h2>
+            <p>Submit only information you genuinely know. Rescue details captured by the system will remain private until an administrator verifies your submission.</p>
+        </div>
+    </div>
+
+    <div class="panel">
+        <div class="form-box">
+            <h2 class="form-title">Survivor Identification Form</h2>
+
+            {% if success %}
+                <div class="alert alert-success">{{ success }}</div>
+            {% endif %}
+
+            {% if error %}
+                <div class="alert alert-error">{{ error }}</div>
+            {% endif %}
+
+            {% if not success %}
+                <form method="POST" action="{{ url_for('identify_survivor', survivor_id=survivor.survivor_id) }}">
+                    <div class="form-group">
+                        <label for="name">Survivor Name <span class="required">*</span></label>
+                        <input type="text" id="name" name="name" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="age">Age <span class="required">*</span></label>
+                        <input type="number" id="age" name="age" min="0" max="120" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="phone">Phone Number <span class="required">*</span></label>
+                        <input type="tel" id="phone" name="phone" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="address">Address <span class="required">*</span></label>
+                        <textarea id="address" name="address" required></textarea>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="relationship">How is the survivor related to you? <span class="required">*</span></label>
+                        <select id="relationship" name="relationship" required>
+                            <option value="">Select one</option>
+                            <option value="blood_related">Blood related</option>
+                            <option value="friend">Friend</option>
+                            <option value="other">Other than that</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group conditional" id="bloodDetail">
+                        <label for="relationship_detail">How are you blood related? <span class="required">*</span></label>
+                        <input type="text" id="relationship_detail" name="relationship_detail" placeholder="Example: father, sister, cousin">
+                    </div>
+
+                    <div class="form-group conditional" id="otherDetail">
+                        <label for="other_detail">How do you know the survivor? <span class="required">*</span></label>
+                        <textarea id="other_detail" name="other_detail"></textarea>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="notes">Extra details for administrator review</label>
+                        <textarea id="notes" name="notes" placeholder="Optional"></textarea>
+                    </div>
+
+                    <div class="form-actions">
+                        <button type="submit" class="btn btn-primary">Submit for Verification</button>
+                        <a href="{{ url_for('home') }}" class="btn btn-secondary">Cancel</a>
+                    </div>
+                </form>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<script>
+    const relationship = document.getElementById('relationship');
+    const bloodDetail = document.getElementById('bloodDetail');
+    const otherDetail = document.getElementById('otherDetail');
+
+    function updateRelationshipFields() {
+        const value = relationship.value;
+        bloodDetail.style.display = value === 'blood_related' ? 'block' : 'none';
+        otherDetail.style.display = value === 'other' ? 'block' : 'none';
+    }
+
+    relationship.addEventListener('change', updateRelationshipFields);
+    updateRelationshipFields();
+</script>
+{% endblock %}

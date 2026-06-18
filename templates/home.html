@@ -1,0 +1,174 @@
+{% extends "base.html" %}
+
+{% block title %}Home - Find Missing Survivors{% endblock %}
+
+{% block extra_css %}
+<style>
+    .info-banner,
+    .stats-banner,
+    .empty-state {
+        background: white;
+        border-radius: 10px;
+        padding: 1.5rem;
+        margin-bottom: 2rem;
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.12);
+    }
+
+    .info-banner {
+        border-left: 4px solid #28a745;
+    }
+
+    .info-banner h3 {
+        color: #28a745;
+        margin-bottom: 0.5rem;
+    }
+
+    .stats-banner {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+        gap: 1.5rem;
+    }
+
+    .stat-item {
+        text-align: center;
+    }
+
+    .stat-number {
+        font-size: 2.3rem;
+        font-weight: bold;
+        color: #667eea;
+    }
+
+    .stat-label {
+        color: #666;
+        font-size: 0.9rem;
+    }
+
+    .section-title {
+        color: white;
+        font-size: 2rem;
+        margin-bottom: 1.5rem;
+        text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+    }
+
+    .survivors-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+        gap: 1.5rem;
+        margin-bottom: 2rem;
+    }
+
+    .survivor-card {
+        background: white;
+        border-radius: 10px;
+        overflow: hidden;
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+    }
+
+    .survivor-image {
+        width: 100%;
+        height: 260px;
+        object-fit: cover;
+        background: #f0f0f0;
+    }
+
+    .survivor-info {
+        padding: 1.25rem;
+    }
+
+    .survivor-status {
+        display: inline-block;
+        background: #ff6b6b;
+        color: white;
+        padding: 0.3rem 0.8rem;
+        border-radius: 20px;
+        font-size: 0.75rem;
+        font-weight: bold;
+        margin-bottom: 1rem;
+    }
+
+    .privacy-note {
+        color: #666;
+        font-size: 0.9rem;
+        margin-bottom: 1rem;
+        line-height: 1.5;
+    }
+
+    .btn {
+        display: block;
+        width: 100%;
+        padding: 0.75rem;
+        border-radius: 5px;
+        text-decoration: none;
+        text-align: center;
+        font-weight: bold;
+    }
+
+    .btn-primary {
+        background: #667eea;
+        color: white;
+    }
+
+    .btn-success {
+        background: #28a745;
+        color: white;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="info-banner">
+    <h3>Help identify survivors</h3>
+    <p>The images below are shown only so logged-in community members can help recognize missing survivors. Captured rescue details are protected and released only after administrator verification.</p>
+</div>
+
+<div class="stats-banner">
+    <div class="stat-item">
+        <div class="stat-number">{{ stats.total }}</div>
+        <div class="stat-label">Total Survivors</div>
+    </div>
+    <div class="stat-item">
+        <div class="stat-number" style="color: #ff6b6b;">{{ stats.unidentified }}</div>
+        <div class="stat-label">Awaiting Help</div>
+    </div>
+    <div class="stat-item">
+        <div class="stat-number" style="color: #28a745;">{{ stats.identified }}</div>
+        <div class="stat-label">Submitted</div>
+    </div>
+    <div class="stat-item">
+        <div class="stat-number" style="color: #ffc107;">{{ stats.verified }}</div>
+        <div class="stat-label">Verified</div>
+    </div>
+</div>
+
+<h2 class="section-title">Survivor Images Needing Identification</h2>
+
+{% if survivors %}
+    <div class="survivors-grid">
+        {% for survivor in survivors %}
+            <div class="survivor-card">
+                <img src="{{ survivor_image_url(survivor) }}"
+                     alt="Survivor image"
+                     class="survivor-image"
+                     onerror="this.src='{{ url_for('static', filename='images/placeholder.svg') }}'">
+
+                <div class="survivor-info">
+                    <span class="survivor-status">Needs identification</span>
+                    <p class="privacy-note">If you recognize this person, log in and submit details for administrator review.</p>
+
+                    {% if is_authenticated %}
+                        <a href="{{ url_for('identify_survivor', survivor_id=survivor.survivor_id) }}" class="btn btn-success">View & Help</a>
+                    {% else %}
+                        <a href="{{ url_for('login', next=url_for('identify_survivor', survivor_id=survivor.survivor_id)) }}" class="btn btn-primary">Login & Help</a>
+                    {% endif %}
+                </div>
+            </div>
+        {% endfor %}
+    </div>
+{% else %}
+    <div class="empty-state">
+        <h3>No pending survivor images</h3>
+        <p>There are no survivor images awaiting public help right now.</p>
+    </div>
+{% endif %}
+{% endblock %}
