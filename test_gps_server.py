@@ -57,6 +57,7 @@ def main():
             print(stderr)
             return 1
 
+        print_result("GPS Help", "/gps")
         print_result("CSV POST", "/gps", "POST", "23.45,67.89,S")
         print_result("JSON POST", "/gps", "POST", json.dumps({"lat": 12.34, "lon": 56.78, "direction": "N"}), "application/json")
         print_result("Form POST", "/gps", "POST", "latitude=17.3850&longitude=78.4867&direction=90", "application/x-www-form-urlencoded")

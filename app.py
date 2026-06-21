@@ -2,21 +2,23 @@ import cv2
 import json
 import os
 import requests
-import threading
 import time
 from datetime import datetime
 from dotenv import load_dotenv
 
-from config import GPS_LATEST_URL, MIN_PERSON_BOX_AREA, VIDEO_URL, AUDIO_URL
-from detector import detect
-from voice_detector import (
-    get_unprocessed_voice_locations,
-    get_unmatched_voice_locations,
-    mark_voice_locations_processed,
-    start_voice_monitor,
-    distance_meters,
-    VOICE_UNKNOWN_IMAGE,
+from config import (
+    CAMERA_READ_FAILURE_LIMIT,
+    DETECTION_FRAME_SKIP,
+    GPS_LATEST_URL,
+    GPS_REQUEST_TIMEOUT_SECONDS,
+    MIN_PERSON_BOX_AREA,
+    PROCESS_FRAME_WIDTH,
+    RECORD_OUTPUT_VIDEO,
+    SURVIVOR_SAVE_INTERVAL_SECONDS,
+    USE_MONGO,
+    VIDEO_URL,
 )
+from detector import detect
 
 # Load environment variables
 load_dotenv()
@@ -24,13 +26,14 @@ load_dotenv()
 # MongoDB integration
 try:
     from reports.connection import get_database
-    MONGO_ENABLED = True
+    MONGO_ENABLED = USE_MONGO
 except ImportError:
     MONGO_ENABLED = False
     print("Warning: MongoDB not configured. Will save to JSON only.")
 
 OUTPUT_VIDEO = "rescue_video.mp4"
 SURVIVOR_REPORT = "reports/survivors.json"
+http_session = requests.Session()
 
 os.makedirs("survivors", exist_ok=True)
 os.makedirs("reports", exist_ok=True)
@@ -38,6 +41,8 @@ os.makedirs("reports", exist_ok=True)
 saved_ids = set()
 survivor_records = {}
 camera_tracks = {}
+last_record_save_times = {}
+survivor_image_quality = {}
 next_survivor_number = 1
 last_known_gps = {
     "latitude": 0.0,
@@ -148,9 +153,9 @@ def get_latest_gps():
     global last_known_gps
 
     try:
-        response = requests.get(
+        response = http_session.get(
             GPS_LATEST_URL,
-            timeout=1
+            timeout=GPS_REQUEST_TIMEOUT_SECONDS
         )
         response.raise_for_status()
 
@@ -176,20 +181,50 @@ def get_latest_gps():
         return last_known_gps.copy()
 
 
-def get_current_gps():
-    gps = get_latest_gps()
-    return gps["latitude"], gps["longitude"]
+def open_video_capture(video_source):
+    cap = cv2.VideoCapture(video_source)
+    cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+    cap.set(cv2.CAP_PROP_OPEN_TIMEOUT_MSEC, 3000)
+    cap.set(cv2.CAP_PROP_READ_TIMEOUT_MSEC, 1000)
+    return cap
 
 
-def find_matching_survivor(latitude, longitude, threshold_meters=10):
-    for existing in survivor_records.values():
-        if existing.get("voice_detected"):
-            continue
+def resize_for_detection(frame):
+    if PROCESS_FRAME_WIDTH <= 0:
+        return frame, 1.0, 1.0
 
-        if distance_meters(latitude, longitude, existing["latitude"], existing["longitude"]) <= threshold_meters:
-            return existing["survivor_id"]
+    height, width = frame.shape[:2]
+    if width <= PROCESS_FRAME_WIDTH:
+        return frame, 1.0, 1.0
 
-    return None
+    scale = PROCESS_FRAME_WIDTH / width
+    resized_height = max(1, int(height * scale))
+    resized = cv2.resize(frame, (PROCESS_FRAME_WIDTH, resized_height))
+    return resized, width / PROCESS_FRAME_WIDTH, height / resized_height
+
+
+def scale_bbox_to_frame(bbox, scale_x, scale_y):
+    x1, y1, x2, y2 = bbox
+    return [
+        int(x1 * scale_x),
+        int(y1 * scale_y),
+        int(x2 * scale_x),
+        int(y2 * scale_y),
+    ]
+
+
+def scale_keypoints_to_frame(keypoints, scale_x, scale_y):
+    if keypoints is None:
+        return None
+
+    scaled = []
+    for point in keypoints:
+        scaled.append({
+            **point,
+            "x": point["x"] * scale_x,
+            "y": point["y"] * scale_y,
+        })
+    return scaled
 
 
 def get_keypoint(keypoints, index, min_confidence=0.35):
@@ -209,8 +244,21 @@ def get_keypoint(keypoints, index, min_confidence=0.35):
 
 
 def enhance_image(image):
-    """Apply blur reduction and sharpening techniques to enhance image clarity."""
+    """Apply light noise reduction without altering image sharpness."""
     if image is None or image.size == 0:
+        return image
+    
+    try:
+        return cv2.fastNlMeansDenoisingColored(
+            image,
+            None,
+            h=3,
+            hColor=3,
+            templateWindowSize=7,
+            searchWindowSize=21,
+        )
+    except Exception as exc:
+        print(f"Image noise reduction failed: {exc}")
         return image
 
 
@@ -284,30 +332,6 @@ def get_public_image_quality(image, keypoints=None):
         "public_visible": public_visible,
         "quality_note": quality_note,
     }
-    
-    try:
-        # 1. Bilateral filter - reduces noise while preserving edges
-        enhanced = cv2.bilateralFilter(image, 9, 75, 75)
-        
-        # 2. Convert to float for processing
-        enhanced = enhanced.astype('float32') / 255.0
-        
-        # 3. Unsharp mask - enhances details
-        blur = cv2.GaussianBlur(enhanced, (0, 0), 2.0)
-        unsharp = enhanced + (enhanced - blur) * 1.5
-        unsharp = cv2.clip(unsharp, 0, 1)
-        
-        # 4. Sharpen kernel for additional clarity
-        kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
-        sharpened = cv2.filter2D(unsharp, -1, kernel)
-        
-        # 5. Convert back to uint8
-        enhanced_img = (cv2.clip(sharpened, 0, 1) * 255).astype('uint8')
-        
-        return enhanced_img
-    except Exception as exc:
-        print(f"Image enhancement failed: {exc}")
-        return image
 
 
 def extract_pose_keypoints(result, detection_index):
@@ -394,13 +418,44 @@ def estimate_posture(x1, y1, x2, y2, keypoints=None):
     return "lying/fallen"
 
 
-def save_survivor_record(record):
-    """
-    Save survivor record to both local JSON and MongoDB
-    """
-    survivor_records[record["survivor_id"]] = record
+def crop_frame(frame, bbox):
+    height, width = frame.shape[:2]
+    x1, y1, x2, y2 = bbox
+    x1 = max(0, min(x1, width - 1))
+    y1 = max(0, min(y1, height - 1))
+    x2 = max(0, min(x2, width))
+    y2 = max(0, min(y2, height))
 
-    # Save to local JSON (backup)
+    if x2 <= x1 or y2 <= y1:
+        return None
+
+    crop = frame[y1:y2, x1:x2]
+    if crop is None or crop.size == 0:
+        return None
+
+    return crop
+
+
+def save_survivor_image(image_path, image):
+    if image is None or image.size == 0:
+        return False
+
+    os.makedirs(os.path.dirname(image_path), exist_ok=True)
+
+    try:
+        saved = cv2.imwrite(image_path, image)
+    except Exception as exc:
+        print(f"Survivor image save failed for {image_path}: {exc}")
+        return False
+
+    if not saved:
+        print(f"Survivor image save failed for {image_path}")
+        return False
+
+    return True
+
+
+def write_survivor_report():
     survivor_data = list(survivor_records.values())
     with open(
         SURVIVOR_REPORT,
@@ -413,19 +468,45 @@ def save_survivor_record(record):
             indent=4
         )
 
+
+def should_persist_survivor_record(survivor_id):
+    now = time.monotonic()
+    last_saved = last_record_save_times.get(survivor_id)
+
+    if last_saved is None:
+        last_record_save_times[survivor_id] = now
+        return True
+
+    if now - last_saved >= SURVIVOR_SAVE_INTERVAL_SECONDS:
+        last_record_save_times[survivor_id] = now
+        return True
+
+    return False
+
+
+def save_survivor_record(record, persist=True):
+    """
+    Save survivor record to both local JSON and MongoDB
+    """
+    if "timestamp" not in record:
+        record["timestamp"] = datetime.now().isoformat()
+
+    if "identified" not in record:
+        record["identified"] = False
+
+    survivor_records[record["survivor_id"]] = record
+
+    if not persist:
+        return
+
+    # Save to local JSON (backup)
+    write_survivor_report()
+
     # Save to MongoDB (primary storage)
     if MONGO_ENABLED:
         try:
             db = get_database()
             if db is not None:
-                # Add timestamp if not present
-                if "timestamp" not in record:
-                    record["timestamp"] = datetime.now().isoformat()
-                
-                # Ensure identified field exists
-                if "identified" not in record:
-                    record["identified"] = False
-                
                 # Upsert: update if exists, insert if new
                 db.survivors.update_one(
                     {"survivor_id": record["survivor_id"]},
@@ -437,66 +518,34 @@ def save_survivor_record(record):
             print(f"✗ Error saving to MongoDB: {e}")
 
 
-def process_voice_events():
-    survivors = list(survivor_records.values())
-    unprocessed = get_unprocessed_voice_locations()
-
-    if not unprocessed:
-        return
-
-    unmatched = get_unmatched_voice_locations(survivors)
-    mark_voice_locations_processed(unprocessed)
-
-    for voice_event in unmatched:
-        voice_id = (
-            f"voice_{voice_event['timestamp'].replace(' ', '_')}")
-        voice_id = voice_id.replace(':', '-')
-
-        if voice_id in survivor_records:
-            continue
-
-        record = {
-            "survivor_id": voice_id,
-            "image": VOICE_UNKNOWN_IMAGE,
-            "latitude": voice_event["latitude"],
-            "longitude": voice_event["longitude"],
-            "direction": last_known_gps.get("direction", "0"),
-            "posture": "voice detected",
-            "confidence": 0.0,
-            "voice_detected": True
-        }
-
-        save_survivor_record(record)
-        print(f"Added unknown voice survivor record: {voice_id}")
-
-
 def generate_reports():
 
     if not survivor_records:
         return
 
-    process_voice_events()
     survivors = list(survivor_records.values())
+
+    try:
+        from map_generator import generate_map
+
+        map_path = generate_map(survivors)
+        print(f"Map report generated: {map_path}")
+    except Exception as e:
+        print(f"Map report not generated: {e}")
 
     try:
         from report_generator import generate_report
 
         generate_report(survivors)
+        print("PDF report generated: reports/survivor_report.pdf")
     except Exception as e:
         print(f"PDF report not generated: {e}")
-
-    try:
-        from map_generator import generate_map
-
-        generate_map(survivors)
-    except Exception as e:
-        print(f"Map report not generated: {e}")
 
 
 def main():
 
     video_source = int(VIDEO_URL) if str(VIDEO_URL).isdigit() else VIDEO_URL
-    cap = cv2.VideoCapture(video_source)
+    cap = open_video_capture(video_source)
 
     if not cap.isOpened():
 
@@ -521,31 +570,23 @@ def main():
 
         height, width = frame.shape[:2]
 
-    fps = 20
-
-    fourcc = cv2.VideoWriter_fourcc(*"mp4v")
-
-    out = cv2.VideoWriter(
-        OUTPUT_VIDEO,
-        fourcc,
-        fps,
-        (width, height)
-    )
+    out = None
+    if RECORD_OUTPUT_VIDEO:
+        fps = 20
+        fourcc = cv2.VideoWriter_fourcc(*"mp4v")
+        out = cv2.VideoWriter(
+            OUTPUT_VIDEO,
+            fourcc,
+            fps,
+            (width, height)
+        )
 
     print("RescueCam Started...")
     print("Press ESC to Exit")
 
-    try:
-        voice_thread = threading.Thread(
-            target=start_voice_monitor,
-            args=(get_current_gps, AUDIO_URL),
-            daemon=True
-        )
-        voice_thread.start()
-    except Exception as exc:
-        print(f"Voice monitor failed to start: {exc}")
-
     frame_index = 0
+    read_failures = 0
+    last_annotated = None
 
     while True:
         frame_index += 1
@@ -553,10 +594,30 @@ def main():
         ret, frame = cap.read()
 
         if not ret:
-            print("Failed to read frame")
-            break
+            read_failures += 1
+            print(f"Failed to read frame ({read_failures}/{CAMERA_READ_FAILURE_LIMIT})")
+            if read_failures >= CAMERA_READ_FAILURE_LIMIT:
+                print("Reconnecting to video source...")
+                cap.release()
+                time.sleep(1)
+                cap = open_video_capture(video_source)
+                read_failures = 0
+                if not cap.isOpened():
+                    print(f"Cannot reconnect to video source: {VIDEO_URL}")
+                    break
+            continue
 
-        results = detect(frame)
+        read_failures = 0
+
+        if frame_index % DETECTION_FRAME_SKIP != 0 and last_annotated is not None:
+            cv2.imshow("RescueCam", last_annotated)
+            if cv2.waitKey(1) & 0xFF == 27:
+                break
+            continue
+
+        detection_frame, scale_x, scale_y = resize_for_detection(frame)
+
+        results = detect(detection_frame)
 
         annotated = frame.copy()
 
@@ -579,10 +640,11 @@ def main():
 
                     confidence = float(box.conf[0])
 
-                    x1, y1, x2, y2 = map(
+                    detected_bbox = list(map(
                         int,
                         box.xyxy[0]
-                    )
+                    ))
+                    x1, y1, x2, y2 = scale_bbox_to_frame(detected_bbox, scale_x, scale_y)
 
                     box_area = max(x2 - x1, 0) * max(y2 - y1, 0)
 
@@ -593,6 +655,7 @@ def main():
                         result,
                         detection_index
                     )
+                    keypoints = scale_keypoints_to_frame(keypoints, scale_x, scale_y)
 
                     posture = estimate_posture(
                         x1,
@@ -658,17 +721,26 @@ def main():
                     )
 
                     image_path = f"survivors/survivor_{survivor_id}.jpg"
-                    survivor_img = frame[y1:y2, x1:x2]
-                    enhanced_img = enhance_image(survivor_img)
-                    image_quality = get_public_image_quality(
-                        enhanced_img,
-                        keypoints=keypoints
-                    )
-
-                    if survivor_id not in saved_ids:
-                        saved_ids.add(survivor_id)
-                        cv2.imwrite(image_path, enhanced_img)
-                        print(f"Saved Survivor {survivor_id} (enhanced)")
+                    image_exists = os.path.exists(image_path)
+                    image_quality = survivor_image_quality.get(survivor_id, {
+                        "face_detected": False,
+                        "blur_score": 0.0,
+                        "public_visible": False,
+                        "quality_note": "Image quality not checked yet",
+                    })
+                    if survivor_id not in saved_ids or not image_exists:
+                        survivor_img = crop_frame(frame, bbox)
+                        enhanced_img = enhance_image(survivor_img)
+                        image_quality = get_public_image_quality(
+                            enhanced_img,
+                            keypoints=keypoints
+                        )
+                        if save_survivor_image(image_path, enhanced_img):
+                            saved_ids.add(survivor_id)
+                            survivor_image_quality[survivor_id] = image_quality
+                            print(f"Saved Survivor {survivor_id} image: {image_path}")
+                        else:
+                            image_path = "unknown.jpg"
 
                     record = {
                         "survivor_id": survivor_id,
@@ -682,10 +754,13 @@ def main():
                         **image_quality
                     }
 
-                    save_survivor_record(record)
+                    persist_record = should_persist_survivor_record(survivor_id)
+                    save_survivor_record(record, persist=persist_record)
 
-        out.write(annotated)
+        if out is not None:
+            out.write(annotated)
 
+        last_annotated = annotated
         cv2.imshow(
             "RescueCam",
             annotated
@@ -695,15 +770,18 @@ def main():
             break
 
     cap.release()
-    out.release()
+    if out is not None:
+        out.release()
 
     cv2.destroyAllWindows()
 
-    print(
-        f"Video saved as "
-        f"{OUTPUT_VIDEO}"
-    )
+    if RECORD_OUTPUT_VIDEO:
+        print(
+            f"Video saved as "
+            f"{OUTPUT_VIDEO}"
+        )
 
+    write_survivor_report()
     generate_reports()
 
 

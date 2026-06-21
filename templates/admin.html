@@ -24,6 +24,7 @@
 
     .stat-card,
     .request-card,
+    .missing-card,
     .empty-state {
         background: white;
         border-radius: 10px;
@@ -42,6 +43,30 @@
         grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
         gap: 1.25rem;
         margin-bottom: 2rem;
+    }
+
+    .missing-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+        gap: 1.25rem;
+        margin-bottom: 2rem;
+    }
+
+    .missing-card-header {
+        display: grid;
+        grid-template-columns: 88px 1fr;
+        gap: 1rem;
+        align-items: start;
+        margin-bottom: 0.85rem;
+    }
+
+    .missing-thumb {
+        width: 88px;
+        height: 88px;
+        border-radius: 6px;
+        object-fit: cover;
+        background: #f0f0f0;
+        border: 1px solid #e0e0e0;
     }
 
     .request-image {
@@ -75,6 +100,7 @@
     .detail-list p {
         margin: 0.35rem 0;
         color: #444;
+        overflow-wrap: anywhere;
     }
 
     .verify-form {
@@ -116,6 +142,13 @@
     .btn-success {
         background: #28a745;
         color: white;
+    }
+
+    @media (max-width: 520px) {
+        .requests-grid,
+        .missing-grid {
+            grid-template-columns: 1fr;
+        }
     }
 </style>
 {% endblock %}
@@ -205,6 +238,51 @@
         </div>
     {% else %}
         <div class="empty-state">No submitted identification requests yet.</div>
+    {% endif %}
+
+    <h2 class="section-title">Missing Person Details From Users</h2>
+    {% if missing_reports %}
+        <div class="missing-grid">
+            {% for report in missing_reports %}
+                <div class="missing-card">
+                    <div class="missing-card-header">
+                        {% if report.photo_path %}
+                            <img src="{{ missing_file_url(report.photo_path) }}"
+                                 alt="Uploaded missing person image"
+                                 class="missing-thumb"
+                                 onerror="this.src='{{ url_for('static', filename='images/placeholder.svg') }}'">
+                        {% else %}
+                            <img src="{{ url_for('static', filename='images/placeholder.svg') }}"
+                                 alt="No uploaded image"
+                                 class="missing-thumb">
+                        {% endif %}
+                        <div>
+                            <span class="badge badge-pending">{{ report.status|default('Submitted', true)|capitalize }}</span>
+                            <p><strong>Missing person:</strong> {{ report.name }}</p>
+                            <p><strong>Age:</strong> {{ report.age }}</p>
+                        </div>
+                    </div>
+                    <div class="detail-list">
+                        <p><strong>Reporter:</strong> {{ report.submitted_by_name }} ({{ report.submitted_by_email }})</p>
+                        <p><strong>Phone:</strong> {{ report.phone }}</p>
+                        <p><strong>Last met:</strong> {{ report.last_met }}</p>
+                        <p><strong>Identification marks:</strong> {{ report.identification_marks|default('Not provided', true) }}</p>
+                        <p><strong>Accessories:</strong> {{ report.accessories|default('Not provided', true) }}</p>
+                        <p><strong>Visible marks:</strong> {{ report.visible_marks|default('Not provided', true) }}</p>
+                        <p><strong>Dress color:</strong> {{ report.dress_color|default('Not provided', true) }}</p>
+                        <p><strong>Disaster proof:</strong> {{ report.disaster_proof_text }}</p>
+                        {% if report.created_at %}
+                            <p><strong>Submitted at:</strong> {{ report.created_at }}</p>
+                        {% endif %}
+                        {% if report.proof_file_path %}
+                            <p><strong>Proof file:</strong> <a href="{{ missing_file_url(report.proof_file_path) }}" target="_blank">Open uploaded proof</a></p>
+                        {% endif %}
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
+    {% else %}
+        <div class="empty-state">No missing-person detail reports from users yet.</div>
     {% endif %}
 
     <h2 class="section-title">Images Still Awaiting Help</h2>

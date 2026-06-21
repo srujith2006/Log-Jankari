@@ -196,17 +196,7 @@
         border-radius: 8px;
         padding: 1rem;
         margin-top: 1rem;
-        display: grid;
-        grid-template-columns: 100px 1fr;
-        gap: 1rem;
-    }
-
-    .missing-report img {
-        width: 100px;
-        height: 100px;
-        object-fit: cover;
-        border-radius: 6px;
-        background: #f0f0f0;
+        background: #fafafa;
     }
 
     .missing-meta {
@@ -300,33 +290,26 @@
 <div class="dashboard-container" style="margin-top: 2rem;">
     <div class="submissions-panel">
         <h2 style="color: #333; margin-bottom: 1rem;">Missing Person Reports</h2>
-        <p style="color: #666; line-height: 1.6;">Report someone missing if you know their details and have proof they may have been in the disaster area.</p>
-        <a href="{{ url_for('report_missing_person') }}" class="btn btn-primary" style="max-width: 280px;">Upload Missing Person</a>
+        <p style="color: #666; line-height: 1.6;">Report someone missing by sending their identifying details and disaster-location proof to the admin team.</p>
+        <a href="{{ url_for('report_missing_person') }}" class="btn btn-primary" style="max-width: 280px;">Report Missing Person</a>
 
         {% if missing_reports %}
             {% for report in missing_reports %}
                 <div class="missing-report">
-                    {% if report.photo_path %}
-                        <img src="{{ missing_file_url(report.photo_path) }}" alt="Missing person photo">
-                    {% else %}
-                        <img src="{{ url_for('static', filename='images/placeholder.svg') }}" alt="No photo">
-                    {% endif %}
-                    <div>
-                        <strong>{{ report.name }}</strong>
-                        <div class="missing-meta">
-                            Age: {{ report.age }}<br>
-                            Phone: {{ report.phone }}<br>
-                            Last met: {{ report.last_met }}<br>
-                            Identification marks: {{ report.identification_marks|default('Not provided', true) }}<br>
-                            Accessories: {{ report.accessories|default('Not provided', true) }}<br>
-                            Visible marks: {{ report.visible_marks|default('Not provided', true) }}<br>
-                            Dress color: {{ report.dress_color|default('Not provided', true) }}<br>
-                            Proof: {{ report.disaster_proof_text }}<br>
-                            Status: {{ report.status|capitalize }}
-                            {% if report.proof_file_path %}
-                                <br><a href="{{ missing_file_url(report.proof_file_path) }}" target="_blank">View uploaded proof</a>
-                            {% endif %}
-                        </div>
+                    <strong>{{ report.name }}</strong>
+                    <div class="missing-meta">
+                        Age: {{ report.age }}<br>
+                        Phone: {{ report.phone }}<br>
+                        Last met: {{ report.last_met }}<br>
+                        Identification marks: {{ report.identification_marks|default('Not provided', true) }}<br>
+                        Accessories: {{ report.accessories|default('Not provided', true) }}<br>
+                        Visible marks: {{ report.visible_marks|default('Not provided', true) }}<br>
+                        Dress color: {{ report.dress_color|default('Not provided', true) }}<br>
+                        Proof: {{ report.disaster_proof_text }}<br>
+                        Status: {{ report.status|capitalize }}
+                        {% if report.proof_file_path %}
+                            <br><a href="{{ missing_file_url(report.proof_file_path) }}" target="_blank">View uploaded proof</a>
+                        {% endif %}
                     </div>
                 </div>
             {% endfor %}

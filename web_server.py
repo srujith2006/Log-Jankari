@@ -158,7 +158,6 @@ class JsonSurvivorStore:
             s for s in self._read()
             if (
                 not s.get('identified', False)
-                and s.get('public_visible') is True
                 and s.get('face_detected') is True
             )
         ]
@@ -416,6 +415,26 @@ def write_missing_persons(reports):
         json.dump(reports, f, indent=4)
 
 
+def count_unseen_missing_reports():
+    return sum(
+        1 for report in read_missing_persons()
+        if not report.get('admin_seen')
+    )
+
+
+def mark_missing_reports_seen():
+    reports = read_missing_persons()
+    changed = False
+
+    for report in reports:
+        if not report.get('admin_seen'):
+            report['admin_seen'] = True
+            changed = True
+
+    if changed:
+        write_missing_persons(reports)
+
+
 def save_missing_upload(file_storage, report_id, label):
     if not file_storage or not file_storage.filename:
         return None
@@ -454,6 +473,14 @@ def public_survivor(survivor):
     return safe
 
 
+def is_public_identification_candidate(survivor):
+    return bool(
+        survivor
+        and not survivor.get('identified', False)
+        and survivor.get('face_detected') is True
+    )
+
+
 app.jinja_env.globals.update(survivor_image_url=survivor_image_url)
 app.jinja_env.globals.update(missing_file_url=missing_file_url)
 
@@ -472,6 +499,14 @@ def can_view_captured_details(survivor):
     return bool(survivor.get('verified') and is_submitter(survivor))
 
 
+def can_open_survivor_page(survivor):
+    if current_user.is_authenticated and getattr(current_user, 'is_admin', False):
+        return True
+    if is_submitter(survivor):
+        return True
+    return is_public_identification_candidate(survivor)
+
+
 @app.context_processor
 def notification_counts():
     counts = {
@@ -487,7 +522,10 @@ def notification_counts():
 
     try:
         if current_user.is_admin and hasattr(survivor_model, 'count_unseen_admin_submissions'):
-            counts['admin_notification_count'] = survivor_model.count_unseen_admin_submissions()
+            counts['admin_notification_count'] = (
+                survivor_model.count_unseen_admin_submissions()
+                + count_unseen_missing_reports()
+            )
         elif hasattr(survivor_model, 'count_unseen_verified_for_user'):
             counts['user_notification_count'] = survivor_model.count_unseen_verified_for_user(current_user.id)
     except Exception as exc:
@@ -589,6 +627,12 @@ def survivor_detail(survivor_id):
         survivor = survivor_model.get_survivor_by_id(survivor_id)
         if not survivor:
             return render_template('error.html', message='Survivor not found'), 404
+
+        if not can_open_survivor_page(survivor):
+            return render_template(
+                'error.html',
+                message='This survivor image is not available for public identification because no clear face was detected.'
+            ), 404
         
         return render_template(
             'survivor_detail.html',
@@ -697,6 +741,12 @@ def identify_survivor(survivor_id):
     survivor = survivor_model.get_survivor_by_id(survivor_id)
     if not survivor:
         return render_template('error.html', message='Survivor not found'), 404
+
+    if not is_public_identification_candidate(survivor) and not current_user.is_admin:
+        return render_template(
+            'error.html',
+            message='This survivor image cannot be used for public identification because no clear face was detected.'
+        ), 400
     
     if survivor.get('identified') and not is_submitter(survivor) and not current_user.is_admin:
         return render_template('error.html',
@@ -756,6 +806,9 @@ def identify_survivor(survivor_id):
 @login_required
 def dashboard():
     """User dashboard"""
+    if current_user.is_admin:
+        return redirect(url_for('admin_dashboard'))
+
     if not ensure_database():
         return render_template('error.html', message='Database unavailable'), 500
     
@@ -786,6 +839,9 @@ def dashboard():
 @login_required
 def report_missing_person():
     """Let normal users submit details of a missing person."""
+    if current_user.is_admin:
+        return redirect(url_for('admin_dashboard'))
+
     if request.method == 'POST':
         name = request.form.get('name', '').strip()
         age = request.form.get('age', '').strip()
@@ -847,6 +903,7 @@ def report_missing_person():
             'photo_path': photo_path,
             'proof_file_path': proof_path,
             'status': 'submitted',
+            'admin_seen': False,
             'created_at': datetime.utcnow().isoformat()
         }
 
@@ -872,13 +929,16 @@ def admin_dashboard():
         stats = survivor_model.get_stats()
         identified = survivor_model.get_identified_survivors(limit=50)
         unidentified = survivor_model.get_unidentified_survivors(limit=50)
+        missing_reports = read_missing_persons()[::-1]
         if hasattr(survivor_model, 'mark_admin_submissions_seen'):
             survivor_model.mark_admin_submissions_seen()
+        mark_missing_reports_seen()
         
         return render_template('admin.html',
                              stats=stats,
                              identified_survivors=identified,
-                             unidentified_survivors=unidentified)
+                             unidentified_survivors=unidentified,
+                             missing_reports=missing_reports)
     except Exception as e:
         print(f"Admin dashboard error: {e}")
         return render_template('error.html', message='Failed to load admin panel'), 500

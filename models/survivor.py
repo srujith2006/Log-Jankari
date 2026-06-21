@@ -18,6 +18,10 @@ class Survivor:
             'direction': survivor_data.get('direction'),
             'posture': survivor_data.get('posture'),
             'confidence': survivor_data.get('confidence'),
+            'face_detected': survivor_data.get('face_detected', False),
+            'public_visible': survivor_data.get('public_visible', False),
+            'blur_score': survivor_data.get('blur_score'),
+            'quality_note': survivor_data.get('quality_note'),
             'identified': False,
             'identification': None,
             'created_at': datetime.utcnow(),
@@ -50,7 +54,6 @@ class Survivor:
         survivors = list(self.collection.find(
             {
                 'identified': False,
-                'public_visible': True,
                 'face_detected': True
             }
         ).sort('created_at', -1).limit(limit))

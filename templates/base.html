@@ -141,13 +141,6 @@
         <div class="navbar-links">
             <a href="{{ url_for('home') }}">Home</a>
             {% if is_authenticated %}
-                <a href="{{ url_for('dashboard') }}" class="nav-link-badge">
-                    Dashboard
-                    {% if user_notification_count %}
-                        <span class="notification-badge">{{ user_notification_count }}</span>
-                    {% endif %}
-                </a>
-                <a href="{{ url_for('report_missing_person') }}">Report Missing</a>
                 {% if current_user.is_admin %}
                     <a href="{{ url_for('admin_dashboard') }}" class="nav-link-badge" style="color: #ffc107;">
                         Admin
@@ -155,6 +148,14 @@
                             <span class="notification-badge">{{ admin_notification_count }}</span>
                         {% endif %}
                     </a>
+                {% else %}
+                    <a href="{{ url_for('dashboard') }}" class="nav-link-badge">
+                        Dashboard
+                        {% if user_notification_count %}
+                            <span class="notification-badge">{{ user_notification_count }}</span>
+                        {% endif %}
+                    </a>
+                    <a href="{{ url_for('report_missing_person') }}">Report Missing</a>
                 {% endif %}
                 <a href="{{ url_for('logout') }}" class="btn btn-danger">Logout</a>
             {% else %}

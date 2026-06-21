@@ -1,5 +1,8 @@
 import json
 import socket
+import threading
+import time
+from datetime import datetime
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlparse
 
@@ -13,12 +16,23 @@ latest_gps = {
     "latitude": 0.0,
     "longitude": 0.0,
     "direction": "0",
+    "updated_at": None,
 }
+gps_lock = threading.Lock()
+last_latest_log = 0.0
 
 
 def get_local_ip():
     try:
+        hostname_ip = socket.gethostbyname(socket.gethostname())
+        if hostname_ip and not hostname_ip.startswith("127."):
+            return hostname_ip
+    except OSError:
+        pass
+
+    try:
         with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
+            sock.settimeout(0.2)
             sock.connect(("8.8.8.8", 80))
             return sock.getsockname()[0]
     except OSError:
@@ -27,6 +41,7 @@ def get_local_ip():
 
 class ReusableThreadingHTTPServer(ThreadingHTTPServer):
     allow_reuse_address = True
+    daemon_threads = True
 
 
 def first_value(values, *keys):
@@ -46,6 +61,7 @@ def parse_gps_values(latitude, longitude, direction="0"):
         "latitude": float(str(latitude).strip()),
         "longitude": float(str(longitude).strip()),
         "direction": str(direction or "0").strip(),
+        "updated_at": datetime.now().isoformat(timespec="seconds"),
     }
 
 
@@ -53,9 +69,23 @@ def parse_gps_payload(payload, query_values=None, content_type=""):
     query_values = query_values or {}
 
     if query_values:
-        latitude = first_value(query_values, "lat", "latitude")
-        longitude = first_value(query_values, "lon", "lng", "long", "longitude")
-        direction = first_value(query_values, "dir", "direction", "heading", "bearing") or "0"
+        latitude = first_value(query_values, "lat", "latitude", "LocationSensor1.Latitude")
+        longitude = first_value(
+            query_values,
+            "lon",
+            "lng",
+            "long",
+            "longitude",
+            "LocationSensor1.Longitude",
+        )
+        direction = first_value(
+            query_values,
+            "dir",
+            "direction",
+            "heading",
+            "bearing",
+            "LocationSensor1.Heading",
+        ) or "0"
 
         if latitude and longitude is None and "," in latitude:
             parts = [part.strip() for part in latitude.split(",")]
@@ -108,11 +138,56 @@ def parse_gps_payload(payload, query_values=None, content_type=""):
 
 
 def print_gps(gps_data):
-    print(json.dumps(gps_data), flush=True)
-    print(f"Latitude  : {gps_data['latitude']}", flush=True)
-    print(f"Longitude : {gps_data['longitude']}", flush=True)
-    print(f"Direction : {gps_data['direction']}", flush=True)
+    print(
+        f"[{gps_data.get('updated_at') or 'no update'}] "
+        f"GPS lat={gps_data['latitude']} lon={gps_data['longitude']} "
+        f"direction={gps_data['direction']}",
+        flush=True,
+    )
     print("-" * 40, flush=True)
+
+
+def update_latest_gps(gps_data):
+    with gps_lock:
+        latest_gps.update(gps_data)
+        snapshot = latest_gps.copy()
+
+    print_gps(snapshot)
+    return snapshot
+
+
+def get_latest_gps_snapshot(log_access=False):
+    global last_latest_log
+
+    with gps_lock:
+        snapshot = latest_gps.copy()
+
+    if log_access:
+        now = time.monotonic()
+        if now - last_latest_log >= 5:
+            last_latest_log = now
+            print(
+                f"Latest requested: lat={snapshot['latitude']} "
+                f"lon={snapshot['longitude']} updated_at={snapshot.get('updated_at')}",
+                flush=True,
+            )
+
+    return snapshot
+
+
+def gps_help_payload():
+    return {
+        "status": "waiting_for_gps_data",
+        "latest_gps": get_latest_gps_snapshot(),
+        "send_gps_to": "/gps",
+        "latest_json": "/latest",
+        "accepted_formats": [
+            "GET /gps?lat=17.3850&lon=78.4867&direction=90",
+            "POST /gps with body: 17.3850,78.4867,90",
+            "POST /gps with JSON: {\"lat\":17.3850,\"lon\":78.4867,\"direction\":\"90\"}",
+            "POST /gps with form fields: latitude, longitude, direction",
+        ],
+    }
 
 
 class GPSRequestHandler(BaseHTTPRequestHandler):
@@ -125,7 +200,7 @@ class GPSRequestHandler(BaseHTTPRequestHandler):
         content_length = int(self.headers.get("Content-Length", 0))
         payload = self.rfile.read(content_length).decode("utf-8").strip()
 
-        print(f"Received: {payload}", flush=True)
+        print(f"Received GPS POST: {payload or parsed_url.query}", flush=True)
 
         try:
             gps_data = parse_gps_payload(
@@ -137,39 +212,32 @@ class GPSRequestHandler(BaseHTTPRequestHandler):
             self.send_text(f"Invalid GPS data. {error}", status=400)
             return
 
-        latest_gps.update(gps_data)
-        print_gps(latest_gps)
-        self.send_json(latest_gps)
+        self.send_json(update_latest_gps(gps_data))
 
     def do_GET(self):
         parsed_url = urlparse(self.path)
         path = parsed_url.path.rstrip("/") or "/"
         if path == "/gps":
+            query_values = parse_qs(parsed_url.query)
+            if not query_values:
+                self.send_json(gps_help_payload())
+                return
+
             try:
-                gps_data = parse_gps_payload("", query_values=parse_qs(parsed_url.query))
+                gps_data = parse_gps_payload("", query_values=query_values)
             except ValueError as error:
                 self.send_text(f"Invalid GPS data. {error}", status=400)
                 return
 
-            latest_gps.update(gps_data)
-            print_gps(latest_gps)
-            self.send_json(latest_gps)
+            self.send_json(update_latest_gps(gps_data))
             return
 
         if path in ("/latest", "/gps.json"):
-            self.send_json(latest_gps)
+            self.send_json(get_latest_gps_snapshot(log_access=True))
             return
 
         if path == "/":
-            self.send_json(
-                {
-                    "status": "running",
-                    "send_gps_to": "/gps",
-                    "latest_json": "/latest",
-                    "format": "latitude,longitude,direction",
-                    "latest_gps": latest_gps,
-                }
-            )
+            self.send_json(gps_help_payload())
             return
 
         self.send_text("Not found", status=404)
@@ -213,4 +281,10 @@ if __name__ == "__main__":
         print(f"Phone/App URL: http://{local_ip}:{GPS_SERVER_PORT}/gps", flush=True)
         print(f"Latest JSON: http://127.0.0.1:{GPS_SERVER_PORT}/latest", flush=True)
         print("Send data as: latitude,longitude,direction", flush=True)
+        print(
+            "Test in browser: "
+            f"http://127.0.0.1:{GPS_SERVER_PORT}/gps?lat=17.3850&lon=78.4867&direction=90",
+            flush=True,
+        )
+        print("Waiting for GPS updates...", flush=True)
         server.serve_forever()

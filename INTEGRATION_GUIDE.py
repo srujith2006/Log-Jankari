@@ -81,7 +81,6 @@ survivor_records[survivor_id] = {
     "direction": direction,
     "posture": posture,
     "confidence": confidence,
-    "voice_detected": False
 }
 
 # Save to JSON
